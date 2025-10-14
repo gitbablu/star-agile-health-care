@@ -34,10 +34,10 @@ pipeline {
         echo 'This stage will push my new image to the dockerhub'
         sh 'docker push prembablu/healthcare:1.0'
             }
-      } */
+      } 
     stage('AWS-Login') {
       steps {
-        withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID', credentialsId: 'awslogin', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+        withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID', credentialsId: 'aws', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')])  {
          }
       }
     }
@@ -53,17 +53,17 @@ pipeline {
     }
     stage('deploy kubernetes'){
 steps{
-  sh 'sudo chmod 600 ./terraform_files/sir.pem'    
+  sh 'sudo chmod 600 ./terraform_files/new.pem'    
   sh 'minikube start'
   sh 'sleep 30'
-  sh 'sudo scp -o StrictHostKeyChecking=no -i ./terraform_files/sir.pem deployment.yml ubuntu@172.31.17.230:/home/ubuntu/'
-  sh 'sudo scp -o StrictHostKeyChecking=no -i ./terraform_files/sir.pem service.yml ubuntu@172.31.17.230:/home/ubuntu/'
+  sh 'sudo scp -o StrictHostKeyChecking=no -i ./terraform_files/new.pem deployment.yml ubuntu@172.31.17.230:/home/ubuntu/'
+  sh 'sudo scp -o StrictHostKeyChecking=no -i ./terraform_files/new.pem service.yml ubuntu@172.31.17.230:/home/ubuntu/'
 script{
   try{
-  sh 'ssh -o StrictHostKeyChecking=no -i ./terraform_files/sir.pem ubuntu@172.31.17.230 kubectl apply -f .'
+  sh 'ssh -o StrictHostKeyChecking=no -i ./terraform_files/new.pem ubuntu@172.31.17.230 kubectl apply -f .'
   }catch(error)
   {
-  sh 'ssh -o StrictHostKeyChecking=no -i ./terraform_files/sir.pem ubuntu@172.31.17.230 kubectl apply -f .'
+  sh 'ssh -o StrictHostKeyChecking=no -i ./terraform_files/new.pem ubuntu@172.31.17.230 kubectl apply -f .'
   }
 }
 }
