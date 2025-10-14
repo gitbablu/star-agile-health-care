@@ -31,7 +31,7 @@ connection {
 type = "ssh"
 host = self.public_ip
 user = "ubuntu"
-private_key = file("./sir.pem")
+private_key = file("./new.pem")
 }
 }
 }
