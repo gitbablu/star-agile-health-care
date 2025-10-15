@@ -40,45 +40,54 @@ pipeline {
       }
     }
 
-    stage('setting the Kubernetes Cluster') {
-  steps {
-    dir('terraform_files') {
-      echo "Initializing and applying Terraform configuration..."
-      sh 'terraform init -input=false'
-      sh 'terraform validate'
-      sh 'terraform apply -auto-approve'
-      
-      // Fetch public IP output safely (removes colors/newlines)
-      script {
-        env.EC2_IP = sh(script: "terraform output -raw public_ip | tr -d '\\r\\n'", returnStdout: true).trim()
-        echo "✅ EC2 Instance Public IP: ${env.EC2_IP}"
+    stage('Provision EC2 using Terraform') {
+      steps {
+        dir('terraform_files') {
+          echo "🌍 Initializing and applying Terraform configuration..."
+          sh 'terraform init -input=false'
+          sh 'terraform validate'
+          sh 'terraform apply -auto-approve'
+          
+          // Fetch the EC2 public IP safely
+          script {
+            env.EC2_IP = sh(script: "terraform output -raw public_ip | tr -d '\\r\\n'", returnStdout: true).trim()
+            echo "✅ EC2 Instance Public IP: ${env.EC2_IP}"
+          }
+
+          // Allow instance time to initialize
+          sh 'sleep 40'
+        }
       }
-      
-      // Wait a bit for the instance to be ready
-      sh 'sleep 30'
+    }
+
+    stage('Deploy Kubernetes on EC2') {
+      steps {
+        echo "🚢 Deploying Kubernetes manifests to EC2 instance..."
+
+        // Fix permissions and copy files
+        sh '''
+          echo "📁 Copying deployment and service YAML files to EC2..."
+          chmod 600 ${PEM_FILE}
+          scp -o StrictHostKeyChecking=no -i ${PEM_FILE} deployment.yml ubuntu@${EC2_IP}:/home/ubuntu/
+          scp -o StrictHostKeyChecking=no -i ${PEM_FILE} service.yml ubuntu@${EC2_IP}:/home/ubuntu/
+        '''
+
+        // Apply Kubernetes manifests remotely
+        script {
+          try {
+            sh "ssh -o StrictHostKeyChecking=no -i ${PEM_FILE} ubuntu@${EC2_IP} 'kubectl apply -f /home/ubuntu/'"
+          } catch (err) {
+            echo "⚠️ First kubectl apply failed — retrying once..."
+            sh "ssh -o StrictHostKeyChecking=no -i ${PEM_FILE} ubuntu@${EC2_IP} 'kubectl apply -f /home/ubuntu/'"
+          }
+        }
+      }
     }
   }
-}
 
-stage('Deploy Kubernetes') {
-  steps {
-    echo "Deploying Kubernetes manifests to EC2 instance..."
-    
-    // Copy deployment and service YAMLs to EC2
-    sh '''
-      echo "Copying deployment and service YAML files to EC2..."
-      sudo scp -o StrictHostKeyChecking=no -i ./terraform_files/new.pem deployment.yml ubuntu@${EC2_IP}:/home/ubuntu/
-      sudo scp -o StrictHostKeyChecking=no -i ./terraform_files/new.pem service.yml ubuntu@${EC2_IP}:/home/ubuntu/
-    '''
-    
-    // Run kubectl apply remotely
-    script {
-      try {
-        sh "ssh -o StrictHostKeyChecking=no -i ./terraform_files/new.pem ubuntu@${EC2_IP} 'kubectl apply -f /home/ubuntu/'"
-      } catch (err) {
-        echo "⚠️ First kubectl apply failed — retrying once..."
-        sh "ssh -o StrictHostKeyChecking=no -i ./terraform_files/new.pem ubuntu@${EC2_IP} 'kubectl apply -f /home/ubuntu/'"
-      }
+  post {
+    always {
+      echo '📄 Pipeline completed (check above logs for status).'
     }
   }
 }
