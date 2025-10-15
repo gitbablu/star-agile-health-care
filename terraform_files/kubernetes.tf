@@ -26,6 +26,8 @@ inline = [
 "sudo cp kubectl /usr/local/bin/kubectl",
 "sudo groupadd docker",
 "sudo usermod -aG docker ubuntu",
+"sudo minikube start --driver=docker",
+"sudo chown -R ubuntu:ubuntu /home/ubuntu/.minikube /home/ubuntu/.kube || true"
 ]
 connection {
 type = "ssh"
