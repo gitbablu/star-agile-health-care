@@ -37,3 +37,12 @@ private_key = file("./new.pem")
 }
 }
 }
+output "public_ip" {
+  description = "Public IP of the Kubernetes EC2 server"
+  value       = aws_instance.kubernetes-server.public_ip
+}
+
+output "private_ip" {
+  description = "Private IP of the Kubernetes EC2 server"
+  value       = aws_instance.kubernetes-server.private_ip
+}
