@@ -40,62 +40,45 @@ pipeline {
       }
     }
 
-    stage('Terraform Apply - Setup EC2') {
-      steps {
-        dir('terraform_files') {
-          echo '🌍 Running Terraform to create infrastructure...'
-          sh 'terraform init'
-          sh 'terraform validate'
-          sh 'terraform apply --auto-approve'
-
-          echo '⏳ Waiting for EC2 to initialize...'
-          sh 'sleep 40'
-        }
+    stage('setting the Kubernetes Cluster') {
+  steps {
+    dir('terraform_files') {
+      echo "Initializing and applying Terraform configuration..."
+      sh 'terraform init -input=false'
+      sh 'terraform validate'
+      sh 'terraform apply -auto-approve'
+      
+      // Fetch public IP output safely (removes colors/newlines)
+      script {
+        env.EC2_IP = sh(script: "terraform output -raw public_ip | tr -d '\\r\\n'", returnStdout: true).trim()
+        echo "✅ EC2 Instance Public IP: ${env.EC2_IP}"
       }
-    }
-
-    stage('Fetch EC2 Public IP') {
-      steps {
-        dir('terraform_files') {
-          script {
-            echo '📡 Fetching EC2 public IP from Terraform output...'
-            env.EC2_IP = sh(script: "terraform output -raw public_ip", returnStdout: true).trim()
-            echo "✅ EC2 Public IP: ${EC2_IP}"
-          }
-        }
-      }
-    }
-
-    stage('Deploy to Minikube on EC2') {
-      steps {
-        echo '🚀 Deploying application on Minikube inside EC2...'
-        sh '''
-        sudo chmod 600 ${PEM_FILE}
-        sudo scp -o StrictHostKeyChecking=no -i ${PEM_FILE} deployment.yml ubuntu@${EC2_IP}:/home/ubuntu/
-        sudo scp -o StrictHostKeyChecking=no -i ${PEM_FILE} service.yml ubuntu@${EC2_IP}:/home/ubuntu/
-
-        ssh -o StrictHostKeyChecking=no -i ${PEM_FILE} ubuntu@${EC2_IP} "
-          echo '🔥 Starting Minikube cluster...'
-          sudo minikube start --driver=docker &&
-          echo '🕐 Waiting for cluster to stabilize...' &&
-          sleep 40 &&
-          echo '📦 Deploying app to Kubernetes...' &&
-          kubectl apply -f /home/ubuntu/deployment.yml &&
-          kubectl apply -f /home/ubuntu/service.yml &&
-          echo '🔍 Checking pod status...' &&
-          kubectl get pods -o wide
-        "
-        '''
-      }
+      
+      // Wait a bit for the instance to be ready
+      sh 'sleep 30'
     }
   }
+}
 
-  post {
-    success {
-      echo "✅ Pipeline completed successfully. App deployed on EC2 Minikube at: ${EC2_IP}"
-    }
-    failure {
-      echo '❌ Pipeline failed. Check Jenkins console logs for details.'
+stage('Deploy Kubernetes') {
+  steps {
+    echo "Deploying Kubernetes manifests to EC2 instance..."
+    
+    // Copy deployment and service YAMLs to EC2
+    sh '''
+      echo "Copying deployment and service YAML files to EC2..."
+      sudo scp -o StrictHostKeyChecking=no -i ./terraform_files/new.pem deployment.yml ubuntu@${EC2_IP}:/home/ubuntu/
+      sudo scp -o StrictHostKeyChecking=no -i ./terraform_files/new.pem service.yml ubuntu@${EC2_IP}:/home/ubuntu/
+    '''
+    
+    // Run kubectl apply remotely
+    script {
+      try {
+        sh "ssh -o StrictHostKeyChecking=no -i ./terraform_files/new.pem ubuntu@${EC2_IP} 'kubectl apply -f /home/ubuntu/'"
+      } catch (err) {
+        echo "⚠️ First kubectl apply failed — retrying once..."
+        sh "ssh -o StrictHostKeyChecking=no -i ./terraform_files/new.pem ubuntu@${EC2_IP} 'kubectl apply -f /home/ubuntu/'"
+      }
     }
   }
 }
