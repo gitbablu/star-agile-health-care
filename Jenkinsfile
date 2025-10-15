@@ -55,14 +55,14 @@ pipeline {
 steps{
   sh 'sudo chmod 600 ./terraform_files/new.pem'    
   sh 'sleep 30'
-  sh 'sudo scp -o StrictHostKeyChecking=no -i ./terraform_files/new.pem deployment.yml ubuntu@3.90.239.50:/home/ubuntu/'
-  sh 'sudo scp -o StrictHostKeyChecking=no -i ./terraform_files/new.pem service.yml ubuntu@3.90.239.50:/home/ubuntu/'
+  sh 'sudo scp -o StrictHostKeyChecking=no -i ./terraform_files/new.pem deployment.yml ubuntu@172.31.29.104:/home/ubuntu/'
+  sh 'sudo scp -o StrictHostKeyChecking=no -i ./terraform_files/new.pem service.yml ubuntu@172.31.29.104:/home/ubuntu/'
 script{
   try{
-  sh 'ssh -o StrictHostKeyChecking=no -i ./terraform_files/new.pem ubuntu@3.90.239.50 kubectl apply -f .'
+  sh 'ssh -o StrictHostKeyChecking=no -i ./terraform_files/new.pem ubuntu@172.31.29.104 kubectl apply -f .'
   }catch(error)
   {
-  sh 'ssh -o StrictHostKeyChecking=no -i ./terraform_files/new.pem ubuntu@3.90.239.50 kubectl apply -f .'
+  sh 'ssh -o StrictHostKeyChecking=no -i ./terraform_files/new.pem ubuntu@172.31.29.104 kubectl apply -f .'
   }
 }
 }
