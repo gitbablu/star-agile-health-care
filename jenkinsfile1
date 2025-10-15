@@ -11,21 +11,21 @@ pipeline {
 
     stage('Git Checkout') {
       steps {
-        echo '📦 Cloning repository...'
+        echo ' Cloning repository...'
         git branch: 'master', url: 'https://github.com/gitbablu/star-agile-health-care.git'
       }
     }
 
     stage('Build & Package') {
       steps {
-        echo '🔧 Building Maven project...'
+        echo ' Building Maven project...'
         sh 'mvn clean package -DskipTests'
       }
     }
 
     stage('Build Docker Image') {
       steps {
-        echo '🐳 Building Docker image...'
+        echo ' Building Docker image...'
         sh "docker build -t ${DOCKER_IMAGE} ."
       }
     }
@@ -35,7 +35,7 @@ pipeline {
         withCredentials([usernamePassword(credentialsId: 'docker', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
           sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
         }
-        echo '🚀 Pushing image to Docker Hub...'
+        echo ' Pushing image to Docker Hub...'
         sh "docker push ${DOCKER_IMAGE}"
       }
     }
@@ -43,7 +43,7 @@ pipeline {
     stage('Provision EC2 using Terraform') {
       steps {
         dir('terraform_files') {
-          echo "🌍 Initializing and applying Terraform configuration..."
+          echo " Initializing and applying Terraform configuration..."
           sh 'terraform init -input=false'
           sh 'terraform validate'
           sh 'terraform apply -auto-approve'
@@ -51,7 +51,7 @@ pipeline {
           // Fetch the EC2 public IP safely
           script {
             env.EC2_IP = sh(script: "terraform output -raw public_ip | tr -d '\\r\\n'", returnStdout: true).trim()
-            echo "✅ EC2 Instance Public IP: ${env.EC2_IP}"
+            echo " EC2 Instance Public IP: ${env.EC2_IP}"
           }
 
           // Allow instance time to initialize
@@ -62,11 +62,11 @@ pipeline {
 
     stage('Deploy Kubernetes on EC2') {
       steps {
-        echo "🚢 Deploying Kubernetes manifests to EC2 instance..."
+        echo " Deploying Kubernetes manifests to EC2 instance..."
 
         // Fix permissions and copy files
         sh '''
-          echo "📁 Copying deployment and service YAML files to EC2..."
+          echo " Copying deployment and service YAML files to EC2..."
           chmod 600 ${PEM_FILE}
           scp -o StrictHostKeyChecking=no -i ${PEM_FILE} deployment.yml ubuntu@${EC2_IP}:/home/ubuntu/
           scp -o StrictHostKeyChecking=no -i ${PEM_FILE} service.yml ubuntu@${EC2_IP}:/home/ubuntu/
@@ -77,7 +77,7 @@ pipeline {
           try {
             sh "ssh -o StrictHostKeyChecking=no -i ${PEM_FILE} ubuntu@${EC2_IP} 'kubectl apply -f /home/ubuntu/'"
           } catch (err) {
-            echo "⚠️ First kubectl apply failed — retrying once..."
+            echo " First kubectl apply failed — retrying once..."
             sh "ssh -o StrictHostKeyChecking=no -i ${PEM_FILE} ubuntu@${EC2_IP} 'kubectl apply -f /home/ubuntu/'"
           }
         }
@@ -87,7 +87,7 @@ pipeline {
 
   post {
     always {
-      echo '📄 Pipeline completed (check above logs for status).'
+      echo ' Pipeline completed (check above logs for status).'
     }
   }
 }
